@@ -1,19 +1,390 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Frequency — a listening bar</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,wght@0,300;0,500;1,400&family=IBM+Plex+Sans:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #14110F;
+    --surface: #1C1815;
+    --line: #332C26;
+    --amber: #D4A24C;
+    --amber-dim: #8A6B33;
+    --teal: #4FB6A8;
+    --text: #EDE6DD;
+    --muted: #8A8078;
+  }
+
+  * { box-sizing: border-box; }
+
+  html, body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'IBM Plex Sans', sans-serif;
+    min-height: 100vh;
+  }
+
+  body {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 48px 24px 80px;
+  }
+
+  header {
+    width: 100%;
+    max-width: 720px;
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    margin-bottom: 36px;
+  }
+
+  h1 {
+    font-family: 'Fraunces', serif;
+    font-weight: 500;
+    font-size: 2rem;
+    letter-spacing: 0.01em;
+    margin: 0;
+  }
+
+  .tagline {
+    font-style: italic;
+    font-family: 'Fraunces', serif;
+    color: var(--muted);
+    font-size: 0.95rem;
+    margin: 4px 0 0;
+  }
+
+  .status {
+    font-size: 0.8rem;
+    color: var(--muted);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: var(--muted);
+    transition: background 0.3s;
+  }
+
+  .dot.live { background: var(--teal); box-shadow: 0 0 8px var(--teal); }
+
+  main {
+    width: 100%;
+    max-width: 720px;
+  }
+
+  .stage {
+    position: relative;
+    border-radius: 6px;
+    overflow: hidden;
+    background: radial-gradient(ellipse at 50% 30%, rgba(212, 162, 76, 0.10), transparent 65%), var(--surface);
+    border: 1px solid var(--line);
+  }
+
+  canvas {
+    display: block;
+    width: 100%;
+    height: 280px;
+  }
+
+  .play-row {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding: 20px 22px;
+    border-top: 1px solid var(--line);
+  }
+
+  #playBtn {
+    background: var(--amber);
+    color: #1A1410;
+    border: none;
+    font-family: 'IBM Plex Sans', sans-serif;
+    font-weight: 500;
+    font-size: 0.95rem;
+    padding: 11px 22px;
+    border-radius: 3px;
+    cursor: pointer;
+    transition: transform 0.15s ease, background 0.15s ease;
+  }
+
+  #playBtn:hover { background: #E3B160; }
+  #playBtn:active { transform: scale(0.97); }
+  #playBtn:focus-visible { outline: 2px solid var(--teal); outline-offset: 2px; }
+
+  #playBtn.playing { background: var(--surface); color: var(--text); border: 1px solid var(--amber-dim); }
+
+  .hint {
+    font-size: 0.82rem;
+    color: var(--muted);
+  }
+
+  .controls {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 18px;
+    margin-top: 24px;
+  }
+
+  .control {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .control label {
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.82rem;
+    color: var(--muted);
+  }
+
+  .control .val { color: var(--amber); font-variant-numeric: tabular-nums; }
+
+  input[type="range"] {
+    -webkit-appearance: none;
+    appearance: none;
+    height: 3px;
+    background: var(--line);
+    border-radius: 2px;
+    outline: none;
+  }
+
+  input[type="range"]:focus-visible { outline: 2px solid var(--teal); outline-offset: 4px; }
+
+  input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    background: var(--amber);
+    cursor: pointer;
+    border: 2px solid var(--bg);
+  }
+
+  input[type="range"]::-moz-range-thumb {
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    background: var(--amber);
+    cursor: pointer;
+    border: 2px solid var(--bg);
+  }
+
+  .crate {
+    margin-top: 40px;
+  }
+
+  .crate h2 {
+    font-family: 'Fraunces', serif;
+    font-weight: 500;
+    font-size: 1.1rem;
+    margin: 0 0 14px;
+  }
+
+  .track {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 13px 4px;
+    border-top: 1px solid var(--line);
+    font-size: 0.9rem;
+  }
+
+  .track:last-child { border-bottom: 1px solid var(--line); }
+
+  .track .name { color: var(--text); }
+  .track .note { color: var(--muted); font-size: 0.8rem; }
+
+  @media (prefers-reduced-motion: reduce) {
+    * { transition: none !important; }
+  }
+
+  @media (max-width: 560px) {
+    header { flex-direction: column; align-items: flex-start; gap: 10px; }
+    .controls { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
 <body>
-  <header>
+
+<header>
+  <div>
     <h1>Frequency</h1>
-    <p>A listening bar for people who miss needle drops</p>
-  </header>
+    <p class="tagline">a listening bar for people who miss needle drops</p>
+  </div>
+  <div class="status">
+    <span class="dot" id="statusDot"></span>
+    <span id="statusText">idle</span>
+  </div>
+</header>
 
-  <main>
-    <section id="visualizer-section">
-      <canvas id="visualizer"></canvas>
-      <button id="playBtn">Play a track</button>
-    </section>
+<main>
+  <div class="stage">
+    <canvas id="visualizer"></canvas>
+    <div class="play-row">
+      <button id="playBtn">Play</button>
+      <span class="hint" id="hint">Press play, then move the dials — you're shaping the sound live.</span>
+    </div>
+  </div>
 
-    <section id="controls">
-      <label>Bass <input type="range" id="bass"></label>
-      <label>Mid <input type="range" id="mid"></label>
-      <label>Treble <input type="range" id="treble"></label>
-    </section>
-  </main>
+  <div class="controls">
+    <div class="control">
+      <label>Bass <span class="val" id="bassVal">50</span></label>
+      <input type="range" id="bass" min="0" max="100" value="50">
+    </div>
+    <div class="control">
+      <label>Mid <span class="val" id="midVal">50</span></label>
+      <input type="range" id="mid" min="0" max="100" value="50">
+    </div>
+    <div class="control">
+      <label>Treble <span class="val" id="trebleVal">30</span></label>
+      <input type="range" id="treble" min="0" max="100" value="30">
+    </div>
+  </div>
+
+  <div class="crate">
+    <h2>Tonight's crate</h2>
+    <div class="track"><span class="name">Low End Theory</span><span class="note">bass-heavy · try turning bass up</span></div>
+    <div class="track"><span class="name">Glass Room</span><span class="note">midrange focus</span></div>
+    <div class="track"><span class="name">Static Bloom</span><span class="note">bright, try more treble</span></div>
+  </div>
+</main>
+
+<script>
+  const playBtn = document.getElementById('playBtn');
+  const statusDot = document.getElementById('statusDot');
+  const statusText = document.getElementById('statusText');
+  const hint = document.getElementById('hint');
+  const canvas = document.getElementById('visualizer');
+  const ctx = canvas.getContext('2d');
+
+  const bassSlider = document.getElementById('bass');
+  const midSlider = document.getElementById('mid');
+  const trebleSlider = document.getElementById('treble');
+  const bassVal = document.getElementById('bassVal');
+  const midVal = document.getElementById('midVal');
+  const trebleVal = document.getElementById('trebleVal');
+
+  let audioCtx, analyser, dataArray, bufferLength;
+  let bassOsc, midOsc, trebleOsc, bassGain, midGain, trebleGain;
+  let playing = false;
+  let animationId;
+
+  function resizeCanvas() {
+    const rect = canvas.getBoundingClientRect();
+    canvas.width = rect.width * devicePixelRatio;
+    canvas.height = rect.height * devicePixelRatio;
+  }
+  window.addEventListener('resize', resizeCanvas);
+
+  function setupAudio() {
+    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    analyser = audioCtx.createAnalyser();
+    analyser.fftSize = 128;
+    bufferLength = analyser.frequencyBinCount;
+    dataArray = new Uint8Array(bufferLength);
+
+    bassOsc = audioCtx.createOscillator();
+    midOsc = audioCtx.createOscillator();
+    trebleOsc = audioCtx.createOscillator();
+    bassOsc.type = 'sine';
+    midOsc.type = 'triangle';
+    trebleOsc.type = 'sine';
+    bassOsc.frequency.value = 80;
+    midOsc.frequency.value = 320;
+    trebleOsc.frequency.value = 2400;
+
+    bassGain = audioCtx.createGain();
+    midGain = audioCtx.createGain();
+    trebleGain = audioCtx.createGain();
+
+    bassOsc.connect(bassGain).connect(analyser);
+    midOsc.connect(midGain).connect(analyser);
+    trebleOsc.connect(trebleGain).connect(analyser);
+    analyser.connect(audioCtx.destination);
+
+    updateGains();
+
+    bassOsc.start();
+    midOsc.start();
+    trebleOsc.start();
+  }
+
+  function updateGains() {
+    const bass = bassSlider.value / 100;
+    const mid = midSlider.value / 100;
+    const treble = trebleSlider.value / 100;
+    bassVal.textContent = bassSlider.value;
+    midVal.textContent = midSlider.value;
+    trebleVal.textContent = trebleSlider.value;
+    if (!bassGain) return;
+    const now = audioCtx.currentTime;
+    bassGain.gain.setTargetAtTime(bass * 0.18, now, 0.05);
+    midGain.gain.setTargetAtTime(mid * 0.10, now, 0.05);
+    trebleGain.gain.setTargetAtTime(treble * 0.05, now, 0.05);
+  }
+
+  [bassSlider, midSlider, trebleSlider].forEach(s => s.addEventListener('input', updateGains));
+
+  function draw() {
+    animationId = requestAnimationFrame(draw);
+    analyser.getByteFrequencyData(dataArray);
+
+    const w = canvas.width;
+    const h = canvas.height;
+    ctx.clearRect(0, 0, w, h);
+
+    const barCount = bufferLength;
+    const barWidth = w / barCount;
+
+    for (let i = 0; i < barCount; i++) {
+      const v = dataArray[i] / 255;
+      const barHeight = v * h * 0.9;
+      const hue = 30 + (i / barCount) * 40;
+      ctx.fillStyle = i % 5 === 0 ? '#4FB6A8' : `hsl(${hue}, 55%, 60%)`;
+      ctx.globalAlpha = 0.85;
+      ctx.fillRect(i * barWidth, h - barHeight, barWidth * 0.7, barHeight);
+    }
+  }
+
+  playBtn.addEventListener('click', async () => {
+    if (!playing) {
+      if (!audioCtx) {
+        resizeCanvas();
+        setupAudio();
+      }
+      await audioCtx.resume();
+      playing = true;
+      playBtn.textContent = 'Pause';
+      playBtn.classList.add('playing');
+      statusDot.classList.add('live');
+      statusText.textContent = 'live';
+      hint.textContent = 'Now shaping three tones in real time — this is genuine audio, not an animation loop.';
+      draw();
+    } else {
+      await audioCtx.suspend();
+      playing = false;
+      playBtn.textContent = 'Play';
+      playBtn.classList.remove('playing');
+      statusDot.classList.remove('live');
+      statusText.textContent = 'idle';
+      cancelAnimationFrame(animationId);
+    }
+  });
+
+  resizeCanvas();
+</script>
+
 </body>
+</html>
